@@ -139,22 +139,6 @@ val_rmse_list <- numeric(n_search_iter)
 nfold <- 50 # Number of folds for cross-validation
 fold_size <- floor(length(target) / nfold)
 
-train_rmse <- numeric(nfold)
-val_rmse <- numeric(nfold)
-train_r2 <- numeric(nfold)
-val_r2 <- numeric(nfold)
-train_mae <- numeric(nfold)
-val_mae <- numeric(nfold)
-
-# Pre-allocate the vectors before the loop
-train_rmse <- numeric(nfold)
-val_rmse <- numeric(nfold)
-train_r2 <- numeric(nfold)
-val_r2 <- numeric(nfold)
-train_mae <- numeric(nfold)
-val_mae <- numeric(nfold)
-directional_accuracy_val <- numeric(nfold)  # Pre-allocate for directional accuracy
-
 # Pre-allocate the vectors before the loop
 train_rmse <- numeric(nfold)
 val_rmse <- numeric(nfold)
@@ -393,7 +377,7 @@ for (i in 2:365) {
   simulated_prices[i] <- simulated_prices[i-1] * exp(predictions[i-1] / 1000)  # Adjusted here
 }
 
-# Step 1: Calculate Strategy Returns (for the next 30 days)å
+# Calculate Strategy Returns (for the next 30 days)
 predicted_returns_30 <- diff(c(0, simulated_prices))  # Predicted returns for 30 days
 actual_returns_30 <- diff(c(0, simulated_prices))  # Actual returns from predicted prices
 
@@ -428,7 +412,7 @@ if (sd_return_val == 0) {
 
 cat("Sharpe Ratio for Validation Set: ", sharpe_ratio_val, "\n")
 
-# Step 3: Calculate Directional Accuracy (for the next 30 days)
+# Calculate Directional Accuracy (for the next 30 days)
 # Generate actual signals (Buy if price increases, Sell if price decreases, Hold otherwise)
 actual_signals_30 <- ifelse(diff(c(0, simulated_prices)) > 0, "Buy", 
                             ifelse(diff(c(0, simulated_prices)) < 0, "Sell", "Hold"))
@@ -453,7 +437,7 @@ directional_accuracy_val <- (correct_predictions_val / total_predictions_val) * 
 
 cat("Directional Accuracy for Validation Set: ", directional_accuracy_val, "%", "\n")
 
-# Step 4: Plot the Predicted Prices with Buy/Hold/Sell Signals for the next 30 days
+# Plot the Predicted Prices with Buy/Hold/Sell Signals for the next 30 days
 forecast_dates_30 <- seq(from = as.Date(tail(index(data), 1)) + 1, by = "day", length.out = 30)
 
 # Slice smoothed_simulated_prices to match the next 30 days
