@@ -75,7 +75,7 @@ library(ggplot2)
 library(viridis)
 
 # Data Collection and Preprocessing
-stock_symbol <- "AAPL"
+stock_symbol <- "MLGO"
 getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
 data <- Cl(get(stock_symbol))  # Extract closing prices
 
@@ -470,11 +470,12 @@ predicted_30_days_df <- data.frame(
 # Remove rows with NA values in the dataframe
 predicted_30_days_df <- na.omit(predicted_30_days_df)
 
-# Plot using ggplot2 with Buy/Hold/Sell signals
 ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
   geom_line(color = viridis(10)[1], linewidth = 1) +  # Predicted prices as a line
-  geom_point(aes(color = Signal), size = 3) +  # Plot points for Buy/Hold/Sell signals
-  scale_color_manual(values = c("Buy" = "green", "Hold" = "yellow", "Sell" = "red")) +
+  geom_point(aes(color = Signal, shape = Signal, fill = Signal), size = 3) +  # Plot points for Buy/Hold/Sell signals with different shapes
+  scale_shape_manual(values = c("Buy" = 17, "Hold" = 19, "Sell" = 25)) +  # Set solid shapes: triangle up for Buy, circle for Hold, triangle down for Sell
+  scale_color_manual(values = c("Buy" = viridis(10)[10], "Hold" = viridis(10)[5], "Sell" = viridis(10)[1])) +  # Set colors for signals
+  scale_fill_manual(values = c("Buy" = viridis(10)[10], "Hold" = viridis(10)[5], "Sell" = viridis(10)[1])) +  # Set fill colors for shapes
   labs(
     title = str_wrap(glue::glue("Predicted Stock Prices for Next 30 Days ({stock_symbol}, USD) with Buy/Hold/Sell Indicators"), width = 50),
     subtitle = glue::glue(
@@ -483,7 +484,8 @@ ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
     ),
     x = "Date", 
     y = "Predicted Stock Price", 
-    color = "Signal"
+    color = "Signal",  # Label for color legend
+    shape = "Signal"   # Label for shape legend
   ) +
   theme_minimal() +
   theme(
@@ -494,8 +496,7 @@ ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
     legend.title = element_text(face = "bold"),  # Optional: Makes legend title bold
     legend.key = element_rect(fill = "white", color = "black")  # Optional: Customizes legend key
   ) +
-  scale_y_continuous(labels = scales::dollar)
-
+  scale_y_continuous(labels = scales::dollar)  # Formatting y-axis labels as currency
 
 
 ```
