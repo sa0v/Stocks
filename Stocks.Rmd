@@ -61,11 +61,10 @@ may be summarized as follows:
 which makes the final prediction of stock price/returns.
 
 ```{r}
-# Load necessary libraries
 library(quantmod)
 library(forecast)
 library(rugarch)
-library(randomForest)  # For Random Forest
+library(randomForest)
 library(tidyr)
 library(dplyr)
 library(Metrics)
@@ -73,9 +72,13 @@ library(glue)
 library(stringr)
 library(ggplot2)
 library(viridis)
+library(TTR)  
+library(zoo)
+library(splines)
+library(stats)
 
 # Data Collection and Preprocessing
-stock_symbol <- "AAPL"
+stock_symbol <- "SONY"
 getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
 data <- Cl(get(stock_symbol))  # Extract closing prices
 
@@ -306,12 +309,22 @@ ggplot(learning_curve_data, aes(x = Round)) +
 
 # Simulate future stock prices using the Random Forest model
 simulated_prices <- numeric(365)
-simulated_prices[1] <- as.numeric(data[length(data)])
+simulated_prices[1] <- as.numeric(data[length(data)])  # Initial value from the last real price
 
 # Simulate the stock prices for the next 365 days
 for (i in 2:365) {
   simulated_prices[i] <- simulated_prices[i-1] * exp(predictions[i-1] / 1000)  # Adjusted here
 }
+
+# Apply Exponential Moving Average (EMA) smoothing, using a window of 10 days
+smoothed_prices <- EMA(simulated_prices, n = 10)
+
+# Ensure that the first smoothed price equals the first predicted price
+# For the smoothing, we interpolate the missing values starting from the second value.
+smoothed_prices[1] <- simulated_prices[1]  # First smoothed price equals the first predicted price
+
+# Interpolate the missing values to ensure there are no NA values
+smoothed_prices <- spline(1:length(smoothed_prices), smoothed_prices, xout = 1:length(smoothed_prices))$y
 
 # Create future dates (next 365 days)
 forecast_dates <- seq(from = as.Date(tail(index(data), 1)) + 1, by = "day", length.out = 365)
@@ -368,18 +381,9 @@ ggplot(combined_data, aes(x = Date, y = Price, color = Type, linetype = Type)) +
   ) +
   scale_y_continuous(labels = scales::dollar)
 
-#Simulate future stock prices using the Random Forest model
-simulated_prices <- numeric(365)
-simulated_prices[1] <- as.numeric(data[length(data)])
-
-# Simulate the stock prices for the next 365 days
-for (i in 2:365) {
-  simulated_prices[i] <- simulated_prices[i-1] * exp(predictions[i-1] / 1000)  # Adjusted here
-}
-
 # Calculate Strategy Returns (for the next 30 days)
-predicted_returns_30 <- diff(c(0, simulated_prices))  # Predicted returns for 30 days
-actual_returns_30 <- diff(c(0, simulated_prices))  # Actual returns from predicted prices
+predicted_returns_30 <- diff(c(0, smoothed_prices))  # Predicted returns for 30 days
+actual_returns_30 <- diff(c(0, smoothed_prices))  # Actual returns from predicted prices
 
 # Generate Buy, Hold, Sell strategy based on price change thresholds
 threshold_buy <- 0.05  # Buy if price increases by 1% compared to the previous day
@@ -414,12 +418,12 @@ cat("Sharpe Ratio for Validation Set: ", sharpe_ratio_val, "\n")
 
 # Calculate Directional Accuracy (for the next 30 days)
 # Generate actual signals (Buy if price increases, Sell if price decreases, Hold otherwise)
-actual_signals_30 <- ifelse(diff(c(0, simulated_prices)) > 0, "Buy", 
-                            ifelse(diff(c(0, simulated_prices)) < 0, "Sell", "Hold"))
+actual_signals_30 <- ifelse(diff(c(0, smoothed_prices)) > 0, "Buy", 
+                            ifelse(diff(c(0, smoothed_prices)) < 0, "Sell", "Hold"))
 
 # Generate predicted signals (based on thresholds)
-predicted_signals_30 <- ifelse(diff(c(0, simulated_prices)) > threshold_buy, "Buy", 
-                               ifelse(diff(c(0, simulated_prices)) < threshold_sell, "Sell", "Hold"))
+predicted_signals_30 <- ifelse(diff(c(0, smoothed_prices)) > threshold_buy, "Buy", 
+                               ifelse(diff(c(0, smoothed_prices)) < threshold_sell, "Sell", "Hold"))
 
 # Calculate Directional Accuracy for Validation Set
 # Generate actual signals (Buy if price increases, Sell if price decreases, Hold otherwise)
@@ -443,7 +447,7 @@ forecast_dates_30 <- seq(from = as.Date(tail(index(data), 1)) + 1, by = "day", l
 # Slice smoothed_simulated_prices to match the next 30 days
 predicted_30_days_df <- data.frame(
   Date = forecast_dates_30,
-  PredictedPrice = simulated_prices[1:30],  # Use the first 30 smoothed prices
+  PredictedPrice = smoothed_prices[1:30],  # Use the first 30 smoothed prices
   Signal = predicted_signals_30[1:30]  # Ensure signals match the 30-day forecast period
 )
 
