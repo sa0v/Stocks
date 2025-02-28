@@ -393,14 +393,13 @@ for (i in 2:365) {
   simulated_prices[i] <- simulated_prices[i-1] * exp(predictions[i-1] / 1000)  # Adjusted here
 }
 
-# Step 1: Calculate Strategy Returns (for the next 30 days)
-# Replace simulated_prices_30 with smoothed_simulated_prices
+# Step 1: Calculate Strategy Returns (for the next 30 days)å
 predicted_returns_30 <- diff(c(0, simulated_prices))  # Predicted returns for 30 days
 actual_returns_30 <- diff(c(0, simulated_prices))  # Actual returns from predicted prices
 
 # Generate Buy, Hold, Sell strategy based on price change thresholds
-threshold_buy <- 0.01  # Buy if price increases by 1% compared to the previous day
-threshold_sell <- -0.01  # Sell if price decreases by 1%
+threshold_buy <- 0.05  # Buy if price increases by 1% compared to the previous day
+threshold_sell <- -0.05  # Sell if price decreases by 1%
 
 # Apply Buy, Hold, Sell strategy
 strategy_returns_30 <- ifelse(predicted_returns_30 > threshold_buy, actual_returns_30, 
