@@ -75,7 +75,7 @@ library(ggplot2)
 library(viridis)
 
 # Data Collection and Preprocessing
-stock_symbol <- "MLGO"
+stock_symbol <- "AAPL"
 getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
 data <- Cl(get(stock_symbol))  # Extract closing prices
 
