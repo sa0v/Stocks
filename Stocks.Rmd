@@ -1,0 +1,526 @@
+---
+title: "Stock Analysis in R"
+author: "John W"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Introduction
+
+Stock price prediction is an obvious application of data analysis and modelling.
+By using the appropriate model, one can make more informed decisions regarding
+purchases of a given stock. This notebook will attempt to apply a combined
+approach to modelling stock prices, using the stock symbol for Apple Inc. (AAPL)
+purely for the sake of example.
+
+# Modelling Approach
+
+There will be three principle models used by this notebook to model and predict
+stock prices for AAPL:
+
+## ARIMA
+
+ARIMA (AutoRegressive Integrated Moving Average) is model principally used for
+time series forecasting, focusing upon modelling the stock's log returns (or the
+percentage change in price). It helps to understand the underlying temporal
+structure in the data, such as trends and seasonality. In this notebook, ARIMA 
+is applied to the log returns of the stock price, which are calculated by taking
+the difference of the natural logarithm of the price. The residuals (or errors)
+fro the ARIMA model are then used as inputs to the GARCH model.
+
+## GARCH
+
+GARCH (Generalized Autoregresssive Conditional Heteroskedasticity) is a model
+used primarily to model and forecast volatility (the variability of stock
+returns in this case). Volatility is crucial for understanding risk and
+predicting how much the stock's price could fluctuate in the future. In this
+notebook, the residuals of the ARIMA model are passed to the GARCH model to
+capture the volatility, or conditional variance. The volatility forecasted by
+GARCH is then used as a feature in the Random Forest model for price prediction.
+It models how the volatility varies over time and helps incorporate volatility
+dynamics into the final prediction.
+
+## Random Forest
+
+Random Forest is an ensemble machine learning model that is typically used for
+classification and regression tasks, working by building multiple decision trees
+and aggregating their predictions to improve the model's overall accuracy. In 
+this notebook, the Random Forest is trained using two key features. The ARIMA
+residuals help to capture the underlying patterns or structures in the
+stock returns. The GARCH volatility predictions provide information about the 
+future volatility (risk) of the stock. Finally, the Random Forest model uses the
+residuals from ARIMA and the volatility forecasted by GARCH as features to
+predict future stock prices or returns. By combining these three models, it is
+possible to. capture both the underlying trend and the volatility of the stock,
+which is crucial for accurate prediction. In summary, the modelling "pipeline"
+may be summarized as follows:
+
+- ARIMA models the stock returns over time and produces residuals (errors).
+- GARCH models the residuals from ARIMA to predict future volatility.
+The residuals and volatility predictions are fed into a Random Forest model,
+which makes the final prediction of stock price/returns.
+
+```{r}
+# Load necessary libraries
+library(quantmod)
+library(forecast)
+library(rugarch)
+library(randomForest)  # For Random Forest
+library(tidyr)
+library(dplyr)
+library(Metrics)
+library(glue)
+library(stringr)
+library(ggplot2)
+library(viridis)
+
+# Data Collection and Preprocessing
+stock_symbol <- "MLGO"
+getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
+data <- Cl(get(stock_symbol))  # Extract closing prices
+
+# Compute log returns
+log_returns <- diff(log(data))
+log_returns <- na.omit(log_returns)
+
+# ARIMA Model: Fit ARIMA to the log returns
+arima_model <- auto.arima(log_returns)
+arima_residuals <- residuals(arima_model)
+
+# GARCH Model: Fit GARCH(1,1) to ARIMA residuals
+garch_spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                         mean.model = list(armaOrder = c(0, 0), include.mean = FALSE),
+                         distribution.model = "norm")
+garch_fit <- ugarchfit(spec = garch_spec, data = arima_residuals)
+
+# Forecast GARCH volatility for the next 365 days
+garch_forecast <- ugarchforecast(garch_fit, n.ahead = 365)
+garch_volatility <- sqrt(sigma(garch_forecast))
+
+# Prepare features and target for Random Forest
+feature_start <- length(arima_residuals) - 364  # Align to the last 365 data points for consistency
+
+# Extract the last 365 values of ARIMA residuals and GARCH volatility
+features <- data.frame(
+  ARIMA_Residuals = arima_residuals[feature_start:length(arima_residuals)],
+  GARCH_Volatility = garch_volatility[(length(garch_volatility)-364):length(garch_volatility)]  # Align GARCH volatility with the last 365 days
+)
+
+# Extract the corresponding target values (log returns)
+target <- log_returns[feature_start:length(log_returns)] * 1000  # Scale target to match the length of features
+
+# Set up parameter grid for Random Search
+param_grid <- list(
+  n_estimators = c(50, 100, 150),          # Number of trees
+  max_depth = c(10, 20, 30, NULL),         # Max depth of trees
+  min_samples_split = c(2, 5, 10),         # Min samples to split a node
+  min_samples_leaf = c(1, 2, 4),           # Min samples at leaf nodes
+  max_features = c("auto", "sqrt", "log2") # Max features at each split
+)
+
+# Random Search: Randomly sample combinations of parameters
+set.seed(42)  # For reproducibility
+n_search_iter <- 10
+best_rmse <- Inf
+best_params <- NULL
+train_rmse_list <- numeric()
+val_rmse_list <- numeric()
+
+# Early stopping parameters
+early_stopping_patience <- 3  # Patience for early stopping (number of rounds without improvement)
+no_improvement_count <- 0
+early_stop_round <- NULL
+
+# Pre-allocate RMSE vectors
+train_rmse_list <- numeric(n_search_iter)  # Pre-allocate based on the number of iterations
+val_rmse_list <- numeric(n_search_iter)
+
+# Cross-validation (manual) to calculate RMSE, R², MAE, and directional accuracy
+nfold <- 50 # Number of folds for cross-validation
+fold_size <- floor(length(target) / nfold)
+
+train_rmse <- numeric(nfold)
+val_rmse <- numeric(nfold)
+train_r2 <- numeric(nfold)
+val_r2 <- numeric(nfold)
+train_mae <- numeric(nfold)
+val_mae <- numeric(nfold)
+
+# Pre-allocate the vectors before the loop
+train_rmse <- numeric(nfold)
+val_rmse <- numeric(nfold)
+train_r2 <- numeric(nfold)
+val_r2 <- numeric(nfold)
+train_mae <- numeric(nfold)
+val_mae <- numeric(nfold)
+directional_accuracy_val <- numeric(nfold)  # Pre-allocate for directional accuracy
+
+# Pre-allocate the vectors before the loop
+train_rmse <- numeric(nfold)
+val_rmse <- numeric(nfold)
+train_r2 <- numeric(nfold)
+val_r2 <- numeric(nfold)
+train_mae <- numeric(nfold)
+val_mae <- numeric(nfold)
+directional_accuracy_val <- numeric(nfold)  # Pre-allocate for directional accuracy
+
+for (i in 1:n_search_iter) {
+  # Randomly select hyperparameters from the grid
+  params <- list(
+    n_estimators = sample(param_grid$n_estimators, 1),
+    max_depth = sample(param_grid$max_depth, 1),
+    min_samples_split = sample(param_grid$min_samples_split, 1),
+    min_samples_leaf = sample(param_grid$min_samples_leaf, 1),
+    max_features = sample(param_grid$max_features, 1)
+  )
+  
+  # Train Random Forest model with the selected hyperparameters
+  rf_model <- randomForest(
+    x = as.data.frame(features),
+    y = as.vector(target),
+    ntree = params$n_estimators,
+    maxdepth = params$max_depth,
+    nodesize = params$min_samples_leaf,
+    maxfeatures = params$max_features
+  )
+  
+  for (fold in 1:nfold) {
+    # Create fold splits
+    test_indices <- ((fold - 1) * fold_size + 1):min(fold * fold_size, length(target))
+    train_indices <- setdiff(1:length(target), test_indices)
+    
+    # Separate features and target
+    train_features <- features[train_indices, , drop = FALSE]
+    test_features <- features[test_indices, , drop = FALSE]
+    
+    train_target <- target[train_indices]
+    test_target <- target[test_indices]
+    
+    rf_model_cv <- randomForest(
+      x = as.data.frame(train_features),  # Ensure it's a data frame
+      y = as.vector(train_target),        # Ensure it's a vector
+      ntree = params$n_estimators,
+      maxdepth = params$max_depth,
+      nodesize = params$min_samples_leaf,
+      maxfeatures = params$max_features
+    )
+    
+    # Predict for training and validation
+    train_predictions <- predict(rf_model_cv, newdata = train_features)
+    val_predictions <- predict(rf_model_cv, newdata = test_features)
+    
+    # Calculate RMSE for both training and validation sets
+    train_rmse[fold] <- sqrt(mean((train_predictions - train_target)^2))
+    val_rmse[fold] <- sqrt(mean((val_predictions - test_target)^2))
+    
+    # Calculate R² for both training and validation sets
+    train_r2[fold] <- cor(train_predictions, train_target)^2
+    val_r2[fold] <- cor(val_predictions, test_target)^2
+    
+    # Calculate MAE for both training and validation sets
+    train_mae[fold] <- mean(abs(train_predictions - train_target))
+    val_mae[fold] <- mean(abs(val_predictions - test_target))
+    
+    # Directional Accuracy (validation set)
+    # Calculate the price changes (differences between consecutive values)
+    actual_changes_val <- diff(test_target)
+    predicted_changes_val <- diff(val_predictions)
+    
+    # Determine the signals based on the sign of changes
+    actual_signals_val <- ifelse(actual_changes_val > 0, "Buy", 
+                                 ifelse(actual_changes_val < 0, "Sell", "Hold"))
+    predicted_signals_val <- ifelse(predicted_changes_val > 0, "Buy", 
+                                    ifelse(predicted_changes_val < 0, "Sell", "Hold"))
+    
+    # Calculate Directional Accuracy for the fold
+    # Ensure both signals are the same length
+    n <- min(length(actual_signals_val), length(predicted_signals_val))
+    
+    # Compare the signals
+    directional_accuracy_val[fold] <- sum(actual_signals_val[1:n] == predicted_signals_val[1:n]) / n * 100
+    
+  }
+  
+  # Calculate average RMSE for training and validation
+  avg_train_rmse <- mean(train_rmse)
+  avg_val_rmse <- mean(val_rmse)
+  
+  # Calculate average R² for training and validation
+  avg_train_r2 <- mean(train_r2)
+  avg_val_r2 <- mean(val_r2)
+  
+  # Calculate average MAE for training and validation
+  avg_train_mae <- mean(train_mae)
+  avg_val_mae <- mean(val_mae)
+  
+  # If validation RMSE is improved, update best parameters
+  if (avg_val_rmse < best_rmse) {
+    best_rmse <- avg_val_rmse
+    best_params <- params
+    no_improvement_count <- 0  # Reset counter if we have improvement
+  } else {
+    no_improvement_count <- no_improvement_count + 1
+  }
+  
+  # Store RMSE values for learning curves
+  train_rmse_list[i] <- avg_train_rmse  # Directly assign values to pre-allocated vector
+  val_rmse_list[i] <- avg_val_rmse  # Directly assign values to pre-allocated vector
+  
+  # If no improvement for specified rounds, stop early
+  if (no_improvement_count >= early_stopping_patience) {
+    early_stop_round <- i
+    break
+  }
+}
+
+# Output best parameters and early stop round
+print(best_params)
+cat("Early stopping occurred at round:", early_stop_round, "\n")
+
+
+# Train final model using the best parameters
+best_rf_model <- randomForest(
+  x = as.data.frame(features),
+  y = as.vector(target),
+  ntree = best_params$n_estimators,
+  maxdepth = best_params$max_depth,
+  nodesize = best_params$min_samples_leaf,
+  maxfeatures = best_params$max_features
+)
+
+# Predict and evaluate the model
+predictions <- predict(best_rf_model, newdata = features)
+
+# Calculate performance metrics
+rmse <- sqrt(mean((predictions - target)^2))
+mae <- mean(abs(predictions - target))
+r2 <- cor(predictions, target)^2
+
+# Plot learning curves (Training and Validation Errors)
+learning_curve_data <- data.frame(
+  Round = 1:length(train_rmse_list),
+  Train_RMSE = train_rmse_list,
+  Val_RMSE = val_rmse_list
+)
+
+ggplot(learning_curve_data, aes(x = Round)) +
+  geom_line(aes(y = Train_RMSE, color = "Train RMSE"), linewidth = 1) +
+  geom_line(aes(y = Val_RMSE, color = "Validation RMSE"), linewidth = 1) +
+  geom_vline(xintercept = early_stop_round, linetype = "dashed", color = viridis(10)[5]) +  # Add early stopping line
+  labs(
+    title = "Learning Curves for Random Forest Model",
+    x = "Fold Number",
+    y = "RMSE"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c(viridis(10)[1], viridis(10)[10])) +
+  theme(
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  )
+
+# Simulate future stock prices using the Random Forest model
+simulated_prices <- numeric(365)
+simulated_prices[1] <- as.numeric(data[length(data)])
+
+# Simulate the stock prices for the next 365 days
+for (i in 2:365) {
+  simulated_prices[i] <- simulated_prices[i-1] * exp(predictions[i-1] / 1000)  # Adjusted here
+}
+
+# Apply EMA to smooth the simulated prices
+smoothed_simulated_prices <- EMA(simulated_prices, n = 10)  # n is the window size for smoothing
+
+# Create future dates (next 365 days)
+forecast_dates <- seq(from = as.Date(tail(index(data), 1)) + 1, by = "day", length.out = 365)
+
+# Plot historical stock prices and predicted stock prices for the next 365 days
+historical_data <- data.frame(
+  Date = index(data),
+  Price = as.numeric(data),
+  Type = "Historical"
+)
+
+predicted_data <- data.frame(
+  Date = forecast_dates,
+  Price = smoothed_simulated_prices,
+  Type = "Predicted"
+)
+
+combined_data <- rbind(historical_data, predicted_data)
+# Remove rows with NA or Inf values from the data
+combined_data <- combined_data[!is.na(combined_data$Price) & is.finite(combined_data$Price), ]
+# Set upper and lower bounds for values
+combined_data <- combined_data[combined_data$Price < 1000 & combined_data$Price > 0, ]
+
+# Calculate CV R², CV RMSE, and CV MAE
+cv_r2 <- mean(val_r2)  # Cross-validation R²
+cv_rmse <- mean(val_rmse)  # Cross-validation RMSE
+cv_mae <- mean(val_mae)  # Cross-validation MAE
+
+# Plot the final data with CV metrics in the subtitle
+ggplot(combined_data, aes(x = Date, y = Price, color = Type, linetype = Type)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c(viridis(10)[1], viridis(10)[10])) +
+  scale_linetype_manual(values = c("solid", "dashed")) +
+  labs(
+    title = glue::glue("Historical vs Predicted Stock Prices for {stock_symbol} (USD)"),
+    subtitle = str_wrap(paste(
+      "Train R²: ", round(r2, 4), "\n",
+      "Train RMSE: ", round(rmse, 4), "\n",
+      "Train MAE: ", round(mae, 4), "\n",
+      "CV R²: ", round(cv_r2, 4), "\n",
+      "CV RMSE: ", round(cv_rmse, 4), "\n",
+      "CV MAE: ", round(cv_mae, 4)
+    ), width = 50),
+    x = "Date",
+    y = "Stock Price",
+    color = "Legend",
+    linetype = "Legend"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "topright",
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5)
+  ) +
+  scale_y_continuous(labels = scales::dollar)
+
+#Simulate future stock prices using the Random Forest model
+simulated_prices <- numeric(365)
+simulated_prices[1] <- as.numeric(data[length(data)])
+
+# Simulate the stock prices for the next 365 days
+for (i in 2:365) {
+  simulated_prices[i] <- simulated_prices[i-1] * exp(predictions[i-1] / 1000)  # Adjusted here
+}
+
+# Step 1: Calculate Strategy Returns (for the next 30 days)
+# Replace simulated_prices_30 with smoothed_simulated_prices
+predicted_returns_30 <- diff(c(0, smoothed_simulated_prices))  # Predicted returns for 30 days
+actual_returns_30 <- diff(c(0, smoothed_simulated_prices))  # Actual returns from predicted prices
+
+# Generate Buy, Hold, Sell strategy based on price change thresholds
+threshold_buy <- 0.01  # Buy if price increases by 1% compared to the previous day
+threshold_sell <- -0.01  # Sell if price decreases by 1%
+
+# Apply Buy, Hold, Sell strategy
+strategy_returns_30 <- ifelse(predicted_returns_30 > threshold_buy, actual_returns_30, 
+                              ifelse(predicted_returns_30 < threshold_sell, -actual_returns_30, 0))
+
+# Calculate returns for the validation set
+validation_returns <- diff(c(0, val_predictions))  # Predicted returns from the validation set
+actual_validation_returns <- diff(c(0, test_target))  # Actual returns for the validation set
+
+# Ensure no extreme negative values
+validation_returns <- pmax(validation_returns, -1)  # Cap extreme negative returns
+
+# Check summary of validation returns to look for large outliers or NaN values
+summary(validation_returns)
+
+# Sharpe Ratio Calculation for Validation Set
+mean_return_val <- mean(validation_returns, na.rm = TRUE)
+sd_return_val <- sd(validation_returns, na.rm = TRUE)
+
+# If the standard deviation is zero, Sharpe ratio cannot be computed
+if (sd_return_val == 0) {
+  sharpe_ratio_val <- NA  # No Sharpe ratio when standard deviation is zero
+} else {
+  sharpe_ratio_val <- (mean_return_val / sd_return_val) * sqrt(252)  # Annualizing the Sharpe ratio
+}
+
+cat("Sharpe Ratio for Validation Set: ", sharpe_ratio_val, "\n")
+
+# Step 3: Calculate Directional Accuracy (for the next 30 days)
+# Generate actual signals (Buy if price increases, Sell if price decreases, Hold otherwise)
+actual_signals_30 <- ifelse(diff(c(0, smoothed_simulated_prices)) > 0, "Buy", 
+                            ifelse(diff(c(0, smoothed_simulated_prices)) < 0, "Sell", "Hold"))
+
+# Generate predicted signals (based on thresholds)
+predicted_signals_30 <- ifelse(diff(c(0, smoothed_simulated_prices)) > threshold_buy, "Buy", 
+                               ifelse(diff(c(0, smoothed_simulated_prices)) < threshold_sell, "Sell", "Hold"))
+
+# Calculate Directional Accuracy for Validation Set
+# Generate actual signals (Buy if price increases, Sell if price decreases, Hold otherwise)
+actual_signals_val <- ifelse(diff(c(0, test_target)) > 0, "Buy", 
+                             ifelse(diff(c(0, test_target)) < 0, "Sell", "Hold"))
+
+# Generate predicted signals (based on thresholds)
+predicted_signals_val <- ifelse(diff(c(0, val_predictions)) > threshold_buy, "Buy", 
+                                ifelse(diff(c(0, val_predictions)) < threshold_sell, "Sell", "Hold"))
+
+# Calculate Directional Accuracy by comparing predicted and actual signals
+correct_predictions_val <- sum(predicted_signals_val == actual_signals_val)
+total_predictions_val <- length(predicted_signals_val)
+directional_accuracy_val <- (correct_predictions_val / total_predictions_val) * 100
+
+cat("Directional Accuracy for Validation Set: ", directional_accuracy_val, "%", "\n")
+
+# Step 4: Plot the Predicted Prices with Buy/Hold/Sell Signals for the next 30 days
+forecast_dates_30 <- seq(from = as.Date(tail(index(data), 1)) + 1, by = "day", length.out = 30)
+
+# Slice smoothed_simulated_prices to match the next 30 days
+predicted_30_days_df <- data.frame(
+  Date = forecast_dates_30,
+  PredictedPrice = smoothed_simulated_prices[1:30],  # Use the first 30 smoothed prices
+  Signal = predicted_signals_30[1:30]  # Ensure signals match the 30-day forecast period
+)
+
+# Remove rows with NA values in the dataframe
+predicted_30_days_df <- na.omit(predicted_30_days_df)
+
+# Plot using ggplot2 with Buy/Hold/Sell signals
+ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
+  geom_line(color = viridis(10)[1], linewidth = 1) +  # Predicted prices as a line
+  geom_point(aes(color = Signal), size = 3) +  # Plot points for Buy/Hold/Sell signals
+  scale_color_manual(values = c("Buy" = "green", "Hold" = "yellow", "Sell" = "red")) +
+  labs(
+    title = str_wrap(glue::glue("Predicted Stock Prices for Next 30 Days ({stock_symbol}, USD) with Buy/Hold/Sell Indicators"), width = 50),
+    subtitle = glue::glue(
+      "Sharpe Ratio: {round(sharpe_ratio_val, 2)}\n",
+      "Directional Accuracy: {round(directional_accuracy_val, 2)}%"
+    ),
+    x = "Date", 
+    y = "Predicted Stock Price", 
+    color = "Signal"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "right",  # Adjusted to be within the plot area
+    legend.box = "vertical",    # Ensures the legend items are stacked vertically
+    legend.title = element_text(face = "bold"),  # Optional: Makes legend title bold
+    legend.key = element_rect(fill = "white", color = "black")  # Optional: Customizes legend key
+  ) +
+  scale_y_continuous(labels = scales::dollar)
+
+
+
+```
+
+# Conclusion
+
+This notebook has used a combined approach to model and predict the stock prices
+of Apple Inc. (AAPL), leveraging the strengths of three powerful models; ARIMA,
+GARCH and Random Forest. Each model plays a distinct role in improving the
+accuracy of stock price predictions. ARIMA was used to capture the underlying
+time series of the stock returns. It helped to identify trends and seasonality
+in the data, which are both essential for understanding the long-term
+behavior of the stock. GARCH was employed to model volatility, providing crucial
+information about how the variability of stock returns evolved over time. Its
+volatility predictions were incorporated as features into the Random Forest
+model, enhancing its ability to account for risk and uncertainty in the stock
+price predictions. Finally, Random Forest integrated the outputs from both ARIMA
+and GARCH models, making the final predictions regarding stock prices or returns.
+Its ability to aggregate multiple decision trees helped improve the model's
+overall accuracy.
+
+The combination of these models allows for a more robust approach to stock price
+prediction, capturing both the underlying trend and volatility dynamics, crucial
+for making informed investment decisions. Though less sophisticated than some
+deep learning and reinforcement learning approaches, the integration of ARIMA's
+time series forecasting, GARCH's volatility modelling and Random Forest's
+predictive power has the potential to enhance stock price prediction accuracy,
+providing valuable insights for investors and traders.
