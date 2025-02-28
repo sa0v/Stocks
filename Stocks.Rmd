@@ -78,7 +78,7 @@ library(splines)
 library(stats)
 
 # Data Collection and Preprocessing
-stock_symbol <- "SONY"
+stock_symbol <- "AAPL"
 getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
 data <- Cl(get(stock_symbol))  # Extract closing prices
 
