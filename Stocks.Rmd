@@ -82,6 +82,9 @@ stock_symbol <- "AAPL"
 getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
 data <- Cl(get(stock_symbol))  # Extract closing prices
 
+# Calculate the most recent date of the record
+most_recent_date <- max(index(data))
+
 # Compute log returns
 log_returns <- diff(log(data))
 log_returns <- na.omit(log_returns)
