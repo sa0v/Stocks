@@ -57,7 +57,7 @@ may be summarized as follows:
 
 - ARIMA models the stock returns over time and produces residuals (errors).
 - GARCH models the residuals from ARIMA to predict future volatility.
-The residuals and volatility predictions are fed into a Random Forest model,
+- The residuals and volatility predictions are fed into a Random Forest model,
 which makes the final prediction of stock price/returns.
 
 ```{r}
