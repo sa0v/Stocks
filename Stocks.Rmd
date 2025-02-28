@@ -329,9 +329,6 @@ for (i in 2:365) {
   simulated_prices[i] <- simulated_prices[i-1] * exp(predictions[i-1] / 1000)  # Adjusted here
 }
 
-# Apply EMA to smooth the simulated prices
-smoothed_simulated_prices <- EMA(simulated_prices, n = 10)  # n is the window size for smoothing
-
 # Create future dates (next 365 days)
 forecast_dates <- seq(from = as.Date(tail(index(data), 1)) + 1, by = "day", length.out = 365)
 
@@ -344,7 +341,7 @@ historical_data <- data.frame(
 
 predicted_data <- data.frame(
   Date = forecast_dates,
-  Price = smoothed_simulated_prices,
+  Price = simulated_prices,
   Type = "Predicted"
 )
 
@@ -398,8 +395,8 @@ for (i in 2:365) {
 
 # Step 1: Calculate Strategy Returns (for the next 30 days)
 # Replace simulated_prices_30 with smoothed_simulated_prices
-predicted_returns_30 <- diff(c(0, smoothed_simulated_prices))  # Predicted returns for 30 days
-actual_returns_30 <- diff(c(0, smoothed_simulated_prices))  # Actual returns from predicted prices
+predicted_returns_30 <- diff(c(0, simulated_prices))  # Predicted returns for 30 days
+actual_returns_30 <- diff(c(0, simulated_prices))  # Actual returns from predicted prices
 
 # Generate Buy, Hold, Sell strategy based on price change thresholds
 threshold_buy <- 0.01  # Buy if price increases by 1% compared to the previous day
@@ -434,12 +431,12 @@ cat("Sharpe Ratio for Validation Set: ", sharpe_ratio_val, "\n")
 
 # Step 3: Calculate Directional Accuracy (for the next 30 days)
 # Generate actual signals (Buy if price increases, Sell if price decreases, Hold otherwise)
-actual_signals_30 <- ifelse(diff(c(0, smoothed_simulated_prices)) > 0, "Buy", 
-                            ifelse(diff(c(0, smoothed_simulated_prices)) < 0, "Sell", "Hold"))
+actual_signals_30 <- ifelse(diff(c(0, simulated_prices)) > 0, "Buy", 
+                            ifelse(diff(c(0, simulated_prices)) < 0, "Sell", "Hold"))
 
 # Generate predicted signals (based on thresholds)
-predicted_signals_30 <- ifelse(diff(c(0, smoothed_simulated_prices)) > threshold_buy, "Buy", 
-                               ifelse(diff(c(0, smoothed_simulated_prices)) < threshold_sell, "Sell", "Hold"))
+predicted_signals_30 <- ifelse(diff(c(0, simulated_prices)) > threshold_buy, "Buy", 
+                               ifelse(diff(c(0, simulated_prices)) < threshold_sell, "Sell", "Hold"))
 
 # Calculate Directional Accuracy for Validation Set
 # Generate actual signals (Buy if price increases, Sell if price decreases, Hold otherwise)
@@ -463,7 +460,7 @@ forecast_dates_30 <- seq(from = as.Date(tail(index(data), 1)) + 1, by = "day", l
 # Slice smoothed_simulated_prices to match the next 30 days
 predicted_30_days_df <- data.frame(
   Date = forecast_dates_30,
-  PredictedPrice = smoothed_simulated_prices[1:30],  # Use the first 30 smoothed prices
+  PredictedPrice = simulated_prices[1:30],  # Use the first 30 smoothed prices
   Signal = predicted_signals_30[1:30]  # Ensure signals match the 30-day forecast period
 )
 
