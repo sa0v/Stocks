@@ -79,7 +79,7 @@ library(stats)
 
 # Data Collection and Preprocessing with Retry Mechanism
 stock_symbol <- "SONY"
-max_retries <- 10  # Maximum number of retries
+max_retries <- 100  # Maximum number of retries
 retry_time <- 1   # Initial retry time in seconds
 
 # Function to get stock data with retry mechanism
