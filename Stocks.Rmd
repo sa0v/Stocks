@@ -13,6 +13,42 @@ purchases of a given stock. This notebook will attempt to apply a combined
 approach to modelling stock prices, using the stock symbol for Apple Inc. (AAPL)
 purely for the sake of example.
 
+# Modelling Approach
+
+There are three models applied in this notebook which, when used together,
+provide a reasonable approximation of stock closing prices:
+
+- ARIMA (AutoRegressive Integrated Moving Average) is a model applied to the 
+stock's log returns. ARIMA is used to model the time-series data and capture
+underlying trends and patterns in the stock prices. The residuals from the 
+ARIMA model are subsequently used for modelling volatility.
+
+- EMA (Exponential Moving Average) Volatility:
+
+The EMA is applied to the absolute residuals from the ARIMA model, in order to
+capture the volatility dynamics. This is a form of "smoothing" that highlights
+recent data points more than older ones, making it particularly useful for
+volatility modelling.
+
+- Random Forest is used to predict stock price movements. The features for the
+random forest model include the residuals from the ARIMA model and the
+volatility calculated using the EMA. The target variable is the log returns of
+the stock, AAPL in this case. The random forest model is a powerful ensemble
+model that combines multiple decision trees, providing better generalization and
+robustness to overfitting as compared to a single tree.
+
+## A Combined Approach
+
+These models are each powerful in their own right, but when combined perform
+quite reasonably in predicting stock prices. ARIMA, as previously stated, is 
+used to model the stock's returns; the residuals from ARIMA are then
+processed using EMA to model volatility. The residuals (ARIMA model output) and
+the volatility (EMA of the ARIMA residuals) are combined into a feature set used
+by the Random Forest model to predict future stock price movements (log returns).
+Thus, the final model combines time-series forecasting (ARIMA), volatility
+modelling (EMA) and robust predictive modelling (Random Forest), with techniques
+like hyperparameter optimization and cross-validation applied to improve accuracy
+and generalization.
 
 ```{r}
 library(quantmod)
@@ -31,7 +67,7 @@ library(zoo)
 library(splines)
 library(stats)
 
-# Data Collection and Preprocessing with Retry Mechanism
+# Data collection and preprocessing with retry mechanism
 stock_symbol <- "AAPL"
 retry_time <- 1   # Initial retry time in seconds
 
@@ -60,10 +96,8 @@ get_stock_data <- function(symbol, max_retries = 100, retry_time = 1) {
 # Call the function to get stock data
 data <- get_stock_data(stock_symbol)
 
-
 # If successful, print the data
 print(data)
-
 
 # Get the most recent date of the record
 most_recent_date <- max(index(data))
@@ -496,3 +530,30 @@ ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
 
 # Conclusion
 
+This notebook used a combined approach to predict stock prices using the Apple
+Inc. stock symbol (AAPL) purely for the sake of example. Three models were used
+in tandem to generate a reasonable approximation:
+
+- ARIMA was used to model the stock's log returns and capture the underlying
+patterns and trends in the data, providing an effective framework for
+time-series forecasting.
+
+- EMA was applied to the absolute residuals of the ARIMA model to capture
+volatility. By giving more weight to recent data, EMA effectively highlights
+short-term fluctuations, crucial for understanding the volatility dynamics of
+stock prices.
+
+- Finally, Random Forest was used as the predictive model for stock price
+movements, leveraging features derived from ARIMA residuals and EMA volatility.
+As an ensemble method, Random Forest combines the outputs of multiple decision
+trees, improving generalization and reducing the risk of overfitting.
+
+Combining these three models allows for the capturing of long-term trends
+(through ARIMA), short-term volatility (via EMA) and robust prediction (with
+Random Forest.) This multiple model approach provides a more holistic view of the
+stock market data, improving prediction accuracy and generalization. Through the
+application of techniques such as cross-validation and hyperparameter
+optimization, the model's performance was further refined, helping to mitigate
+overfitting. Overall, the combined approach offers a comprehensive and effective
+method for forecasting stock prices, enabling more informed decisions for stock
+market investment.
