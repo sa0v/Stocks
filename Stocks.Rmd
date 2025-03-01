@@ -77,10 +77,40 @@ library(zoo)
 library(splines)
 library(stats)
 
-# Data Collection and Preprocessing
-stock_symbol <- "AAPL"
-getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
-data <- Cl(get(stock_symbol))  # Extract closing prices
+# Data Collection and Preprocessing with Retry Mechanism
+stock_symbol <- "SONY"
+max_retries <- 10  # Maximum number of retries
+retry_time <- 10   # Initial retry time in seconds
+
+# Function to get stock data with retry mechanism
+get_stock_data <- function(symbol, max_retries = 10, retry_time = 10) {
+  for (attempt in 1:max_retries) {
+    # Try to get the stock data
+    tryCatch({
+      getSymbols(symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo", auto.assign = TRUE)
+      data <- Cl(get(symbol))  # Extract closing prices
+      return(data)  # Return the data if successful
+    }, error = function(e) {
+      # If an error occurs, print the error and retry after waiting
+      message(paste("\nAttempt", attempt, "failed:", e$message))
+      if (attempt < max_retries) {
+        message(paste("Retrying in", retry_time, "seconds..."))
+        Sys.sleep(retry_time)  # Wait for retry_time seconds
+        retry_time <<- retry_time + 10  # Increase retry time by 10 seconds for next attempt (use <<- to update the global variable)
+      } else {
+        stop("Failed to retrieve data after ", max_retries, " attempts.")  # Stop if max retries are reached
+      }
+    })
+  }
+}
+
+# Call the function to get stock data
+data <- get_stock_data(stock_symbol)
+
+
+# If successful, print the data
+print(data)
+
 
 # Get the most recent date of the record
 most_recent_date <- max(index(data))
