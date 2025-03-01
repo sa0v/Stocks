@@ -78,12 +78,12 @@ library(splines)
 library(stats)
 
 # Data Collection and Preprocessing with Retry Mechanism
-stock_symbol <- "AAPL"
+stock_symbol <- "SONY"
 max_retries <- 10  # Maximum number of retries
-retry_time <- 10   # Initial retry time in seconds
+retry_time <- 1   # Initial retry time in seconds
 
 # Function to get stock data with retry mechanism
-get_stock_data <- function(symbol, max_retries = 10, retry_time = 10) {
+get_stock_data <- function(symbol, max_retries = 100, retry_time = 1) {
   for (attempt in 1:max_retries) {
     # Try to get the stock data
     tryCatch({
@@ -96,7 +96,7 @@ get_stock_data <- function(symbol, max_retries = 10, retry_time = 10) {
       if (attempt < max_retries) {
         message(paste("Retrying in", retry_time, "seconds..."))
         Sys.sleep(retry_time)  # Wait for retry_time seconds
-        retry_time <<- retry_time + 10  # Increase retry time by 10 seconds for next attempt (use <<- to update the global variable)
+        retry_time <<- retry_time + 1  # Increase retry time by 10 seconds for next attempt (use <<- to update the global variable)
       } else {
         stop("Failed to retrieve data after ", max_retries, " attempts.")  # Stop if max retries are reached
       }
