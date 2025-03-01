@@ -13,52 +13,6 @@ purchases of a given stock. This notebook will attempt to apply a combined
 approach to modelling stock prices, using the stock symbol for Apple Inc. (AAPL)
 purely for the sake of example.
 
-# Modelling Approach
-
-There will be three principle models used by this notebook to model and predict
-stock prices for AAPL:
-
-## ARIMA
-
-ARIMA (AutoRegressive Integrated Moving Average) is model principally used for
-time series forecasting, focusing upon modelling the stock's log returns (or the
-percentage change in price). It helps to understand the underlying temporal
-structure in the data, such as trends and seasonality. In this notebook, ARIMA 
-is applied to the log returns of the stock price, which are calculated by taking
-the difference of the natural logarithm of the price. The residuals (or errors)
-fro the ARIMA model are then used as inputs to the GARCH model.
-
-## GARCH
-
-GARCH (Generalized Autoregresssive Conditional Heteroskedasticity) is a model
-used primarily to model and forecast volatility (the variability of stock
-returns in this case). Volatility is crucial for understanding risk and
-predicting how much the stock's price could fluctuate in the future. In this
-notebook, the residuals of the ARIMA model are passed to the GARCH model to
-capture the volatility, or conditional variance. The volatility forecasted by
-GARCH is then used as a feature in the Random Forest model for price prediction.
-It models how the volatility varies over time and helps incorporate volatility
-dynamics into the final prediction.
-
-## Random Forest
-
-Random Forest is an ensemble machine learning model that is typically used for
-classification and regression tasks, working by building multiple decision trees
-and aggregating their predictions to improve the model's overall accuracy. In 
-this notebook, the Random Forest is trained using two key features. The ARIMA
-residuals help to capture the underlying patterns or structures in the
-stock returns. The GARCH volatility predictions provide information about the 
-future volatility (risk) of the stock. Finally, the Random Forest model uses the
-residuals from ARIMA and the volatility forecasted by GARCH as features to
-predict future stock prices or returns. By combining these three models, it is
-possible to. capture both the underlying trend and the volatility of the stock,
-which is crucial for accurate prediction. In summary, the modelling "pipeline"
-may be summarized as follows:
-
-- ARIMA models the stock returns over time and produces residuals (errors).
-- GARCH models the residuals from ARIMA to predict future volatility.
-- The residuals and volatility predictions are fed into a Random Forest model,
-which makes the final prediction of stock price/returns.
 
 ```{r}
 library(quantmod)
@@ -542,25 +496,3 @@ ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
 
 # Conclusion
 
-This notebook has used a combined approach to model and predict the stock prices
-of Apple Inc. (AAPL), leveraging the strengths of three powerful models; ARIMA,
-GARCH and Random Forest. Each model plays a distinct role in improving the
-accuracy of stock price predictions. ARIMA was used to capture the underlying
-time series of the stock returns. It helped to identify trends and seasonality
-in the data, which are both essential for understanding the long-term
-behavior of the stock. GARCH was employed to model volatility, providing crucial
-information about how the variability of stock returns evolved over time. Its
-volatility predictions were incorporated as features into the Random Forest
-model, enhancing its ability to account for risk and uncertainty in the stock
-price predictions. Finally, Random Forest integrated the outputs from both ARIMA
-and GARCH models, making the final predictions regarding stock prices or returns.
-Its ability to aggregate multiple decision trees helped improve the model's
-overall accuracy.
-
-The combination of these models allows for a more robust approach to stock price
-prediction, capturing both the underlying trend and volatility dynamics, crucial
-for making informed investment decisions. Though less sophisticated than some
-deep learning and reinforcement learning approaches, the integration of ARIMA's
-time series forecasting, GARCH's volatility modelling and Random Forest's
-predictive power has the potential to enhance stock price prediction accuracy,
-providing valuable insights for investors and traders.
