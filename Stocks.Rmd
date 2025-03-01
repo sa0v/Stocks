@@ -153,15 +153,7 @@ log_returns <- na.omit(log_returns)
 arima_model <- auto.arima(log_returns)
 arima_residuals <- residuals(arima_model)
 
-# GARCH Model: Fit GARCH(1,1) to ARIMA residuals
-garch_spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
-                         mean.model = list(armaOrder = c(0, 0), include.mean = FALSE),
-                         distribution.model = "norm")
-garch_fit <- ugarchfit(spec = garch_spec, data = arima_residuals)
-
-# Forecast GARCH volatility for the next 365 days
-garch_forecast <- ugarchforecast(garch_fit, n.ahead = 365)
-garch_volatility <- sqrt(sigma(garch_forecast))
+ema_volatility <- EMA(abs(arima_residuals), n = 20)  # Apply EMA on the absolute residuals to model volatility
 
 # Prepare features and target for Random Forest
 feature_start <- length(arima_residuals) - 364  # Align to the last 365 data points for consistency
@@ -202,7 +194,7 @@ train_rmse_list <- numeric(n_search_iter)  # Pre-allocate based on the number of
 val_rmse_list <- numeric(n_search_iter)
 
 # Cross-validation (manual) to calculate RMSE, R², MAE, and directional accuracy
-nfold <- 50 # Number of folds for cross-validation
+nfold <- 10 # Number of folds for cross-validation
 fold_size <- floor(length(target) / nfold)
 
 # Pre-allocate the vectors before the loop
