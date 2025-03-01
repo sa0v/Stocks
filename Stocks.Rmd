@@ -532,3 +532,30 @@ ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
 
 # Conclusion
 
+This notebook used a combined approach to predict stock prices using the Apple
+Inc. stock symbol (AAPL) purely for the sake of example. Three models were used
+in tandem to generate a reasonable approximation:
+
+- ARIMA was used to model the stock's log returns and capture the underlying
+patterns and trends in the data, providing an effective framework for
+time-series forecasting.
+
+- EMA was applied to the absolute residuals of the ARIMA model to capture
+volatility. By giving more weight to recent data, EMA effectively highlights
+short-term fluctuations, crucial for understanding the volatility dynamics of
+stock prices.
+
+- Finally, Random Forest was used as the predictive model for stock price
+movements, leveraging features derived from ARIMA residuals and EMA volatility.
+As an ensemble method, Random Forest combines the outputs of multiple decision
+trees, improving generalization and reducing the risk of overfitting.
+
+Combining these three models allows for the capturing of long-term trends
+(through ARIMA), short-term volatility (via EMA) and robust prediction (with
+Random Forest.) This multiple model approach provides a more holistic view of the
+stock market data, improving prediction accuracy and generalization. Through the
+application of techniques such as cross-validation and hyperparameter
+optimization, the model's performance was further refined, helping to mitigate
+overfitting. Overall, the combined approach offers a comprehensive and effective
+method for forecasting stock prices, enabling more informed decisions for stock
+market investment.
