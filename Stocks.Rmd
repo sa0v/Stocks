@@ -67,7 +67,7 @@ library(zoo)
 library(splines)
 library(stats)
 
-# Data Collection and Preprocessing with Retry Mechanism
+# Data collection and preprocessing with retry mechanism
 stock_symbol <- "AAPL"
 retry_time <- 1   # Initial retry time in seconds
 
@@ -96,10 +96,8 @@ get_stock_data <- function(symbol, max_retries = 100, retry_time = 1) {
 # Call the function to get stock data
 data <- get_stock_data(stock_symbol)
 
-
 # If successful, print the data
 print(data)
-
 
 # Get the most recent date of the record
 most_recent_date <- max(index(data))
