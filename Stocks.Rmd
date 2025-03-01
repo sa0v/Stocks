@@ -78,7 +78,7 @@ library(splines)
 library(stats)
 
 # Data Collection and Preprocessing with Retry Mechanism
-stock_symbol <- "SONY"
+stock_symbol <- "AAPL"
 max_retries <- 10  # Maximum number of retries
 retry_time <- 10   # Initial retry time in seconds
 
