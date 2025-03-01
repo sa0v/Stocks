@@ -78,12 +78,43 @@ library(splines)
 library(stats)
 
 # Data Collection and Preprocessing
-stock_symbol <- "SONY"
+stock_symbol <- "AAPL"
 getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
 data <- Cl(get(stock_symbol))  # Extract closing prices
 
-# Calculate the most recent date of the record
+# Get the most recent date of the record
 most_recent_date <- max(index(data))
+
+# Ensure the most_recent_clean_date is in Date format
+most_recent_date <- as.Date(most_recent_date)
+
+# Visualize the dataset before removing outliers
+cat("Before outlier removal:\n")
+summary(data)
+
+# Remove outliers using the IQR method
+Q1 <- quantile(data, 0.25)
+Q3 <- quantile(data, 0.75)
+IQR_value <- Q3 - Q1
+
+# Define the upper and lower bounds for outliers
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
+
+# Filter out the outliers
+data <- data[data >= lower_bound & data <= upper_bound]
+
+# Visualize the dataset after removing outliers
+cat("\nAfter outlier removal:\n")
+summary(data)
+
+# Check the most recent date of cleaned data
+# Convert the most recent date from POSIX to Date format
+most_recent_clean_date <- max(index(data))
+most_recent_clean_date <- as.Date(most_recent_clean_date)  # Convert to Date format
+
+# Print the most recent date in a readable format
+cat("\nMost recent clean data date: ", most_recent_clean_date, "\n")
 
 # Compute log returns
 log_returns <- diff(log(data))
@@ -464,7 +495,7 @@ ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
   scale_color_manual(values = c("Buy" = viridis(10)[10], "Hold" = viridis(10)[5], "Sell" = viridis(10)[1])) +  # Set colors for signals
   scale_fill_manual(values = c("Buy" = viridis(10)[10], "Hold" = viridis(10)[5], "Sell" = viridis(10)[1])) +  # Set fill colors for shapes
   labs(
-    title = str_wrap(glue::glue("Predicted Stock Prices for Next 30 Days with Buy/Hold/Sell Indicators ({stock_symbol}, USD) Last Updated on {most_recent_date}"), width = 50),
+    title = str_wrap(glue::glue("Predicted Stock Prices for Next 30 Days ({stock_symbol}, USD) Last Updated on {most_recent_clean_date}"), width = 50),
     subtitle = glue::glue(
       "Sharpe Ratio: {round(sharpe_ratio_val, 2)}\n",
       "Directional Accuracy: {round(directional_accuracy_val, 2)}%"
