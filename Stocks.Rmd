@@ -32,7 +32,7 @@ library(splines)
 library(stats)
 
 # Data Collection and Preprocessing with Retry Mechanism
-stock_symbol <- "AAPL"
+stock_symbol <- "MLGO"
 retry_time <- 1   # Initial retry time in seconds
 
 # Function to get stock data with retry mechanism
@@ -148,7 +148,7 @@ train_rmse_list <- numeric(n_search_iter)  # Pre-allocate based on the number of
 val_rmse_list <- numeric(n_search_iter)
 
 # Cross-validation (manual) to calculate RMSE, R², MAE, and directional accuracy
-nfold <- 10 # Number of folds for cross-validation
+nfold <- 25 # Number of folds for cross-validation
 fold_size <- floor(length(target) / nfold)
 
 # Pre-allocate the vectors before the loop
