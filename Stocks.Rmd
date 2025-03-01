@@ -78,7 +78,7 @@ library(splines)
 library(stats)
 
 # Data Collection and Preprocessing
-stock_symbol <- "AAPL"
+stock_symbol <- "SONY"
 getSymbols(stock_symbol, from = "2010-01-01", to = Sys.Date(), src = "yahoo")
 data <- Cl(get(stock_symbol))  # Extract closing prices
 
@@ -362,7 +362,7 @@ ggplot(combined_data, aes(x = Date, y = Price, color = Type, linetype = Type)) +
   scale_color_manual(values = c(viridis(10)[1], viridis(10)[10])) +
   scale_linetype_manual(values = c("solid", "dashed")) +
   labs(
-    title = str_wrap(glue::glue("Historical vs Predicted Stock Prices ({stock_symbol}, USD) (Last Updated on {most_recent_date})"),width=50),
+    title = str_wrap(glue::glue("Historical vs Predicted Stock Prices ({stock_symbol}, USD) Last Updated on {most_recent_date}"),width=50),
     subtitle = str_wrap(paste(
       "Train R²: ", round(r2, 4), "\n",
       "Train RMSE: ", round(rmse, 4), "\n",
@@ -464,7 +464,7 @@ ggplot(predicted_30_days_df, aes(x = Date, y = PredictedPrice)) +
   scale_color_manual(values = c("Buy" = viridis(10)[10], "Hold" = viridis(10)[5], "Sell" = viridis(10)[1])) +  # Set colors for signals
   scale_fill_manual(values = c("Buy" = viridis(10)[10], "Hold" = viridis(10)[5], "Sell" = viridis(10)[1])) +  # Set fill colors for shapes
   labs(
-    title = str_wrap(glue::glue("Predicted Stock Prices for Next 30 Days with Buy/Hold/Sell Indicators ({stock_symbol}, USD) (Last Updated on {most_recent_date})"), width = 50),
+    title = str_wrap(glue::glue("Predicted Stock Prices for Next 30 Days with Buy/Hold/Sell Indicators ({stock_symbol}, USD) Last Updated on {most_recent_date}"), width = 50),
     subtitle = glue::glue(
       "Sharpe Ratio: {round(sharpe_ratio_val, 2)}\n",
       "Directional Accuracy: {round(directional_accuracy_val, 2)}%"
