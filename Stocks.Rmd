@@ -13,6 +13,42 @@ purchases of a given stock. This notebook will attempt to apply a combined
 approach to modelling stock prices, using the stock symbol for Apple Inc. (AAPL)
 purely for the sake of example.
 
+# Modelling Approach
+
+There are three models applied in this notebook which, when used together,
+provide a reasonable approximation of stock closing prices:
+
+- ARIMA (AutoRegressive Integrated Moving Average) is a model applied to the 
+stock's log returns. ARIMA is used to model the time-series data and capture
+underlying trends and patterns in the stock prices. The residuals from the 
+ARIMA model are subsequently used for modelling volatility.
+
+- EMA (Exponential Moving Average) Volatility:
+
+The EMA is applied to the absolute residuals from the ARIMA model, in order to
+capture the volatility dynamics. This is a form of "smoothing" that highlights
+recent data points more than older ones, making it particularly useful for
+volatility modelling.
+
+- Random Forest is used to predict stock price movements. The features for the
+random forest model include the residuals from the ARIMA model and the
+volatility calculated using the EMA. The target variable is the log returns of
+the stock, AAPL in this case. The random forest model is a powerful ensemble
+model that combines multiple decision trees, providing better generalization and
+robustness to overfitting as compared to a single tree.
+
+## A Combined Approach
+
+These models are each powerful in their own right, but when combined perform
+quite reasonably in predicting stock prices. ARIMA, as previously stated, is 
+used to model the stock's returns; the residuals from ARIMA are then
+processed using EMA to model volatility. The residuals (ARIMA model output) and
+the volatility (EMA of the ARIMA residuals) are combined into a feature set used
+by the Random Forest model to predict future stock price movements (log returns).
+Thus, the final model combines time-series forecasting (ARIMA), volatility
+modelling (EMA) and robust predictive modelling (Random Forest), with techniques
+like hyperparameter optimization and cross-validation applied to improve accuracy
+and generalization.
 
 ```{r}
 library(quantmod)
